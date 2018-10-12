@@ -30,14 +30,14 @@ const int cat2Count = 10;
 const int totalCalls = cat0Calls * cat0Count + cat1Calls * cat1Count + cat2Calls * cat2Count;
 
 int id = 0;
-char *zErrMsg = 0;
+char *zErrMsg = nullptr;
 int rc;
 
 void check()
 {
   if (rc != SQLITE_OK) // Проверяем на ошибки
     {
-      fprintf(stderr, "SQL error: %s\n", zErrMsg);
+      cout << "SQL error: " << zErrMsg << endl;
       sqlite3_free(zErrMsg);
     }
 }
@@ -61,7 +61,7 @@ int rowidCallback(void *rowid, int argc, char **argv, char **azColName)
   if (printOut)
     { zeroCallback(rowid, argc, argv, azColName); }
 
-  *((int *)rowid) = std::stoi(argv[0]);
+  *static_cast<int *>(rowid) = std::stoi(argv[0]);
   return 0;
 }
 
@@ -70,7 +70,7 @@ int countCallback(void *count, int argc, char **argv, char **azColName)
   if (debug && printOut)
     { zeroCallback(count, argc, argv, azColName); }
 
-  *((int *)count) = std::stoi(argv[0]);
+  *static_cast<int *>(count) = std::stoi(argv[0]);
   return 0;
 }
 
@@ -82,7 +82,7 @@ void createTable(sqlite3 *db)
   if (debug)
     { cout << req << endl; }
 
-  rc = sqlite3_exec(db, req.data(), zeroCallback, 0, &zErrMsg);
+  rc = sqlite3_exec(db, req.data(), zeroCallback, nullptr, &zErrMsg);
   check();
 }
 
@@ -101,7 +101,7 @@ void insertPocyk(sqlite3 *db, int cat, int number, int pocyks)
     { cout << req << endl; }
 
   rc = sqlite3_exec(db, req.data(),
-                    zeroCallback, 0, &zErrMsg);
+                    zeroCallback, nullptr, &zErrMsg);
   check();
 }
 
@@ -124,7 +124,7 @@ void call(sqlite3 *db)
   if (debug)
     { cout << req << endl; }
 
-  rc = sqlite3_exec(db, req.data(), zeroCallback, 0, &zErrMsg);
+  rc = sqlite3_exec(db, req.data(), zeroCallback, nullptr, &zErrMsg);
   check();
   //  req = "UPDATE pocyks SET mul = mul+1.0+1.0*random()/9223372036854775807 WHERE active=1 AND rowid!="; //TODO
   req = "UPDATE pocyks SET mul = mul+1.0+1.0*random()/9223372036854775807 WHERE rowid!=";
@@ -134,7 +134,7 @@ void call(sqlite3 *db)
   if (debug)
     { cout << req << endl; }
 
-  rc = sqlite3_exec(db, req.data(), zeroCallback, 0, &zErrMsg);
+  rc = sqlite3_exec(db, req.data(), zeroCallback, nullptr, &zErrMsg);
   check();
 }
 
@@ -148,7 +148,7 @@ void resetCalls(sqlite3 *db)
   if (debug)
     { cout << req << endl; }
 
-  rc = sqlite3_exec(db, req.data(), zeroCallback, 0, &zErrMsg);
+  rc = sqlite3_exec(db, req.data(), zeroCallback, nullptr, &zErrMsg);
   check();
   req = "UPDATE pocyks SET callsRemain = ";
   req += std::to_string(cat1Calls);
@@ -157,7 +157,7 @@ void resetCalls(sqlite3 *db)
   if (debug)
     { cout << req << endl; }
 
-  rc = sqlite3_exec(db, req.data(), zeroCallback, 0, &zErrMsg);
+  rc = sqlite3_exec(db, req.data(), zeroCallback, nullptr, &zErrMsg);
   check();
   req = "UPDATE pocyks SET callsRemain = ";
   req += std::to_string(cat2Calls);
@@ -166,7 +166,7 @@ void resetCalls(sqlite3 *db)
   if (debug)
     { cout << req << endl; }
 
-  rc = sqlite3_exec(db, req.data(), zeroCallback, 0, &zErrMsg);
+  rc = sqlite3_exec(db, req.data(), zeroCallback, nullptr, &zErrMsg);
   check();
 }
 
@@ -180,7 +180,7 @@ void addCallsDno(sqlite3 *db)
   if (debug)
     { cout << req << endl; }
 
-  rc = sqlite3_exec(db, req.data(), zeroCallback, 0, &zErrMsg);
+  rc = sqlite3_exec(db, req.data(), zeroCallback, nullptr, &zErrMsg);
   check();
 }
 
@@ -206,7 +206,7 @@ void toggleActivityRandom(sqlite3 *db)
   if (debug)
     { cout << req << endl; }
 
-  rc = sqlite3_exec(db, req.data(), zeroCallback, 0, &zErrMsg);
+  rc = sqlite3_exec(db, req.data(), zeroCallback, nullptr, &zErrMsg);
   check();
 }
 
@@ -223,11 +223,11 @@ sqlite3 *connect(bool inMemory)
       rc = sqlite3_open("aba", &db);
     }
 
-  if (rc) // Проверяем на ошибки
+  if (rc != 0) // Проверяем на ошибки
     {
-      fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+      cout << "Can't open database: " << sqlite3_errmsg(db) << endl;
       sqlite3_close(db);
-      return (NULL);
+      return (nullptr);
     }
 
   string req;
@@ -236,14 +236,14 @@ sqlite3 *connect(bool inMemory)
   if (debug)
     { cout << req << endl; }
 
-  rc = sqlite3_exec(db, req.data(), zeroCallback, 0, &zErrMsg);
+  rc = sqlite3_exec(db, req.data(), zeroCallback, nullptr, &zErrMsg);
   check();
   return db;
 }
 
 int main()
 {
-  srand(time(NULL)); // Инициализация рандома
+  srand(time(nullptr)); // Инициализация рандома
   sqlite3 *db = connect(false);
   createTable(db); // Создаём таблицу
   cout << endl << "add pocyks" << endl << endl;
