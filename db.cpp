@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <climits>
 #include <iostream>
 #include <random>
@@ -10,7 +11,7 @@ using namespace std;
 
 const bool debug = true; // FIXME
 const bool printOut = true; // WARNING
-const int maxWeeks = 1;
+const int maxWeeks = 0;
 
 // Куча настроек категорий
 const int cat0Calls = 8;
@@ -19,9 +20,26 @@ const int cat1Calls = 6;
 const int cat1Count = 50;
 const int cat2Calls = 2;
 const int cat2Count = 10;
-
 // Считаем суммарное положенное количество прослушек
 const int totalCalls = cat0Calls * cat0Count + cat1Calls * cat1Count + cat2Calls * cat2Count;
+
+const int AOCount = 600;
+const int OdinSOCount = 500;
+const int ETPCount = 300;
+const int ABCCount = 100;
+// Считаем суммарное количество звонков за прошлую неделю
+const int totalCalls2 = AOCount + OdinSOCount + ETPCount + ABCCount;
+
+const int OKKCount = 7;
+
+struct Service
+{
+  string name;
+  int remainingOKKCount;
+  int totalCalls;
+  int calls;
+  array <bool, OKKCount> OKKs;
+};
 
 int id = 0;
 char *zErrMsg = nullptr;
@@ -68,10 +86,33 @@ int countCallback(void *count, int argc, char **argv, char **azColName)
   return 0;
 }
 
-void createTable(sqlite3 *db)
+int servicesCallback(void *service, int argc, char **argv, char **azColName)
+{
+  if (debug && printOut)
+    { zeroCallback(service, argc, argv, azColName); }
+
+  auto *svc = static_cast<Service *>(service);
+  svc->remainingOKKCount++;
+  svc->OKKs.at(std::stoi(argv[0]) - 1) = true;
+  return 0;
+}
+
+void createTablePocyks(sqlite3 *db)
 {
   string req;
   req = "DROP TABLE IF EXISTS pocyks; CREATE TABLE pocyks (cat INT, name TEXT, callsRemain INT, mul FLOAT, active INT);";
+
+  if (debug)
+    { cout << req << endl; }
+
+  rc = sqlite3_exec(db, req.data(), zeroCallback, nullptr, &zErrMsg);
+  check();
+}
+
+void createTableOKKs(sqlite3 *db)
+{
+  string req;
+  req = "DROP TABLE IF EXISTS okks; CREATE TABLE okks (name TEXT, AO INT, OdinSO INT, ETP INT, ABC INT);";
 
   if (debug)
     { cout << req << endl; }
@@ -90,6 +131,29 @@ void insertPocyk(sqlite3 *db, int cat, int number, int pocyks)
   req += "', ";
   req += std::to_string(pocyks);
   req += ", 1, 1);";
+
+  if (debug)
+    { cout << req << endl; }
+
+  rc = sqlite3_exec(db, req.data(),
+                    zeroCallback, nullptr, &zErrMsg);
+  check();
+}
+
+void insertOKK(sqlite3 *db, string &name, bool AO, bool OdinSO, bool ETP, bool ABC)
+{
+  string req;
+  req = "INSERT INTO okks (name, AO, OdinSO, ETP, ABC) VALUES ('";
+  req += name;
+  req += "', ";
+  req += AO ? "0" : "NULL";
+  req += ", ";
+  req += OdinSO ? "0" : "NULL";
+  req += ", ";
+  req += ETP ? "0" : "NULL";
+  req += ", ";
+  req += ABC ? "0" : "NULL";
+  req += ");";
 
   if (debug)
     { cout << req << endl; }
@@ -130,6 +194,46 @@ void call(sqlite3 *db)
 
   rc = sqlite3_exec(db, req.data(), zeroCallback, nullptr, &zErrMsg);
   check();
+}
+
+void planOKK(sqlite3 *db)
+{
+  float k = 1.0 * totalCalls / totalCalls2;
+  int AO = round(AOCount * k);
+  int OdinSO = round(OdinSOCount * k);
+  int ETP = round(ETPCount * k);
+  int ABC = round(ABCCount * k);
+  int total = AO + OdinSO + ETP + ABC;
+  int callsOKK = total / OKKCount;
+  int dopCallsOKK = total - callsOKK * OKKCount;
+  array<Service, 4> svcs = array<Service, 4>();
+  svcs[0].name = "AO";
+  svcs[0].calls = AO;
+  svcs[0].totalCalls = AO;
+  svcs[1].name = "OdinSO";
+  svcs[1].calls = OdinSO;
+  svcs[1].totalCalls = OdinSO;
+  svcs[2].name = "ETP";
+  svcs[2].calls = ETP;
+  svcs[2].totalCalls = ETP;
+  svcs[3].name = "ABC";
+  svcs[3].calls = ABC;
+  svcs[3].totalCalls = ABC;
+  string req;
+  string req1 = "SELECT rowid FROM okks WHERE ";
+  string req2 = " NOT NULL;";
+
+  for (int i = 0; i < 4; i++)
+    {
+      req = req1 + svcs.at(i).name;
+      req += req2;
+
+      if (debug)
+        { cout << req << endl; }
+
+      rc = sqlite3_exec(db, req.data(), servicesCallback, &svcs.at(i), &zErrMsg);
+      check();
+    }
 }
 
 void resetCalls(sqlite3 *db)
@@ -239,7 +343,8 @@ int main()
 {
   srand(time(nullptr)); // Инициализация рандома
   sqlite3 *db = connect(false);
-  createTable(db); // Создаём таблицу
+  cout << endl << endl;
+  createTablePocyks(db); // Создаём таблицу поцыков
   cout << endl << "add pocyks" << endl << endl;
   //  Добавляем поцыков в таблицу в три захода
   {
@@ -258,6 +363,22 @@ int main()
         insertPocyk(db, 2, i, cat2Calls);
       }
   }
+  cout << endl << endl;
+  createTableOKKs(db); // Создаём таблицу ОКК
+  cout << endl << "add OKKs" << endl << endl;
+  //  Добавляем OKK в таблицу в три захода
+  {
+    string OKK = "OKK ";
+    string name;
+
+    for (int i = 0; i < OKKCount; i++)
+      {
+        name = OKK + std::to_string(i);
+        insertOKK(db, name, i % 2 == 0, i % 2 == 1, (i / 2) % 2 == 0, (i / 2) % 2 == 1);
+      }
+  }
+  cout << endl << "planirovanie OKK" << endl << endl;
+  planOKK(db);
 
   for (int week = 0; week < maxWeeks; week++) // Много недель подряд...
     {
