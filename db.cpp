@@ -13,12 +13,6 @@ const bool printOut = true; // WARNING
 const int maxWeeks = 1;
 
 // Куча настроек категорий
-//const int cat0Calls = 6;
-//const int cat0Count = 15;
-//const int cat1Calls = 2;
-//const int cat1Count = 5;
-//const int cat2Calls = 1;
-//const int cat2Count = 2;
 const int cat0Calls = 8;
 const int cat0Count = 40;
 const int cat1Calls = 6;
