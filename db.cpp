@@ -23,18 +23,18 @@ const int cat2Count = 10;
 // Считаем суммарное положенное количество прослушек
 const int totalCalls = cat0Calls * cat0Count + cat1Calls * cat1Count + cat2Calls * cat2Count;
 
-const int AOCount = 600;
-const int OdinSOCount = 500;
-const int ETPCount = 300;
-const int ABCCount = 100;
+const int servicesCount = 5;
+const vector<string> serviceNames = {"AO", "OdinSO", "ETP", "ABC", "OFD", "KEK", "ABA", "XYZ"};
+const vector<int> serviceCalls = {600, 500, 300, 100, 200, 700, 400, 800};
+
 // Считаем суммарное количество звонков за прошлую неделю
-const int totalCalls2 = AOCount + OdinSOCount + ETPCount + ABCCount;
+int totalCalls2 = 0;
 
 const int OKKCount = 7;
 
 struct Service
 {
-  string name;
+  int id = -1;
   int remainingOKKCount = 0;
   int calls = 0;
 };
@@ -43,11 +43,8 @@ struct OKK
 {
   int id = 0;
   string name;
-  int AO = 0;
-  int OdinSO = 0;
-  int ETP = 0;
-  int ABC = 0;
   int calls = 0;
+  vector<int> s = vector<int>(servicesCount);
 };
 
 int id = 0;
@@ -110,16 +107,18 @@ int OKKCallback(void *OKKs, int argc, char **argv, char **azColName)
   if (printOut)
     { zeroCallback(OKKs, argc, argv, azColName); }
 
-  if (argc == 6)
+  if (argc >= 3)
     {
       auto *ops = static_cast<vector<OKK> *>(OKKs);
       OKK op;
       op.id = std::stoi(argv[0]);
       op.name = argv[1];
-      op.AO = std::stoi(argv[2] != nullptr ? argv[2] : "-1");
-      op.OdinSO = std::stoi(argv[3] != nullptr ? argv[3] : "-1");
-      op.ETP = std::stoi(argv[4] != nullptr ? argv[4] : "-1");
-      op.ABC = std::stoi(argv[5] != nullptr ? argv[5] : "-1");
+
+      for (int i = 2; i < argc; i++)
+        {
+          op.s[i - 2] = std::stoi(argv[i] != nullptr ? argv[i] : "-1");
+        }
+
       ops->push_back(op);
       return 0;
     }
@@ -142,7 +141,16 @@ void createTablePocyks(sqlite3 *db)
 void createTableOKKs(sqlite3 *db)
 {
   string req;
-  req = "DROP TABLE IF EXISTS okks; CREATE TABLE okks (name TEXT, AO INT, OdinSO INT, ETP INT, ABC INT);";
+  req = "DROP TABLE IF EXISTS okks; CREATE TABLE okks (name TEXT";
+
+  for (int i = 0; i < servicesCount; i++)
+    {
+      req += ", ";
+      req += serviceNames[i];
+      req += " INT";
+    }
+
+  req += ");";
 
   if (debug)
     { cout << req << endl; }
@@ -169,19 +177,27 @@ void insertPocyk(sqlite3 *db, int cat, int number, int pocyks)
   check();
 }
 
-void insertOKK(sqlite3 *db, const string &name, bool AO, bool OdinSO, bool ETP, bool ABC)
+void insertOKK(sqlite3 *db, const string &name, int code)
 {
   string req;
-  req = "INSERT INTO okks (name, AO, OdinSO, ETP, ABC) VALUES ('";
+  req = "INSERT INTO okks (name";
+
+  for (int i = 0; i < servicesCount; i++)
+    {
+      req += ", ";
+      req += serviceNames[i];
+    }
+
+  req += ") VALUES ('";
   req += name;
-  req += "', ";
-  req += AO ? "0" : "NULL";
-  req += ", ";
-  req += OdinSO ? "0" : "NULL";
-  req += ", ";
-  req += ETP ? "0" : "NULL";
-  req += ", ";
-  req += ABC ? "0" : "NULL";
+  req += "'";
+
+  for (int i = 0; i < servicesCount; i++)
+    {
+      req += ", ";
+      req += ((code + i) % 2 == 0 || (code + i + 4) % 5 > 2) ? "0" : "NULL";
+    }
+
   req += ");";
 
   if (debug)
@@ -229,83 +245,79 @@ bool servicesComparsionOKKs(const Service &a, const Service &b)
   return a.remainingOKKCount > b.remainingOKKCount;
 }
 
-void setCalls(OKK &op, const string &name, int calls)
+void setCalls(OKK &op, int id, int calls)
 {
-  if (name.compare("AO") == 0)
-    {
-      op.AO = calls;
-    }
-  else
-    if (name.compare("OdinSO") == 0)
-      {
-        op.OdinSO = calls;
-      }
-    else
-      if (name.compare("ETP") == 0)
-        {
-          op.ETP = calls;
-        }
-      else
-        if (name.compare("ABC") == 0)
-          {
-            op.ABC = calls;
-          }
+  op.s[id] = calls;
+  op.calls = 0;
 
-  op.calls += calls;
+  for (int i = 0; i < op.s.size(); i++)
+    {
+      if (op.s[i] > 0)
+        {
+          op.calls += op.s[i];
+        }
+    }
 }
 
-string serviceName;
+int serviceID;
 
 bool serviceSearch(const Service &s)
 {
-  return s.name.compare(serviceName) == 0;
+  return s.id == serviceID;
 }
 
 void planOKK(sqlite3 *db)
 {
   float k = 1.0 * totalCalls / totalCalls2;
-  int AO = round(AOCount * k);
-  int OdinSO = round(OdinSOCount * k);
-  int ETP = round(ETPCount * k);
-  int ABC = round(ABCCount * k);
-  int total = AO + OdinSO + ETP + ABC;
-  int callsOKK = total / OKKCount;
-  int dopCallsOKK = total - callsOKK * OKKCount;
-  vector<Service> svcs = vector<Service>(4);
-  svcs[0].name = "AO";
-  svcs[0].calls = AO;
-  svcs[1].name = "OdinSO";
-  svcs[1].calls = OdinSO;
-  svcs[2].name = "ETP";
-  svcs[2].calls = ETP;
-  svcs[3].name = "ABC";
-  svcs[3].calls = ABC;
+  vector<int> calls;
+  calls.reserve(servicesCount);
+
+  for (int i = 0; i < servicesCount; i++)
+    {
+      calls.push_back(round(serviceCalls[i] * k));
+    }
+
+  int callsOKK = totalCalls / OKKCount;
+  int dopCallsOKK = totalCalls - callsOKK * OKKCount;
+  vector<Service> svcs = vector<Service>(servicesCount);
+
+  for (int i = 0; i < svcs.size(); i++)
+    {
+      svcs[i].calls = calls[i];
+      svcs[i].id = i;
+    }
+
   string req;
   string req1 = "SELECT rowid FROM okks WHERE ";
   string req2 = " NOT NULL;";
 
-  for (int i = 0; i < 4; i++)
+  for (auto &svc : svcs)
     {
-      req = req1 + svcs.at(i).name;
+      req = req1 + serviceNames[svc.id];
       req += req2;
 
       if (debug)
         { cout << req << endl; }
 
-      rc = sqlite3_exec(db, req.data(), servicesCallback, &svcs.at(i), &zErrMsg);
+      rc = sqlite3_exec(db, req.data(), servicesCallback, &svc, &zErrMsg);
       check();
     }
 
-  for (int svcI = 0; svcI < 3; svcI++) // FIXME
+  for (int svcI = 0; svcI < servicesCount - 1; svcI++) // FIXME
     {
-      //TODO цикл отсюда
       std::sort(svcs.begin(), svcs.end(), servicesComparsionOKKs);
       Service s = svcs.back();
       svcs.pop_back();
+
+      if (s.remainingOKKCount == 0)
+        {
+          break;
+        }
+
       int calls = s.calls / s.remainingOKKCount;
       int dopCalls = s.calls - calls * s.remainingOKKCount;
       req = "SELECT rowid, * FROM okks WHERE ";
-      req += s.name;
+      req += serviceNames[s.id];
       req += " = 0;";
 
       if (debug)
@@ -313,11 +325,32 @@ void planOKK(sqlite3 *db)
 
       vector<OKK> OKKs = vector<OKK>();
       rc = sqlite3_exec(db, req.data(), OKKCallback, &OKKs, &zErrMsg);
+
+      for (auto &OKK : OKKs)
+        {
+          OKK.calls = 0;
+
+          for (int i = 0; i < OKK.s.size(); i++)
+            {
+              if (OKK.s[i] > 0)
+                {
+                  OKK.calls += OKK.s[i];
+                }
+            }
+        }
+
       check();
 
       for (auto &OKK : OKKs)
         {
-          setCalls(OKK, s.name, calls + (dopCalls-- > 0 ? 1 : 0));
+          //          setCalls(OKK, s.id, calls + (dopCalls-- > 0 ? 1 : 0));
+          setCalls(OKK, s.id, std::min(calls + (dopCalls-- > 0 ? 1 : 0), callsOKK - OKK.calls));
+
+          if (OKK.calls > callsOKK + 1)
+            {
+              rc = rc;
+              return;
+            }
         }
 
       // Проверка на несвободных операторов
@@ -325,78 +358,41 @@ void planOKK(sqlite3 *db)
         {
           int freedom = 0;
 
-          if (OKK.AO == 0)
+          for (int i = 0; i < servicesCount; i++)
             {
-              freedom++;
-            }
-
-          if (OKK.OdinSO == 0)
-            {
-              freedom++;
-            }
-
-          if (OKK.ETP == 0)
-            {
-              freedom++;
-            }
-
-          if (OKK.ABC == 0)
-            {
-              freedom++;
+              if (OKK.s[i] == 0)
+                {
+                  freedom++;
+                }
             }
 
           if (freedom == 1) // Дополнить оставшуюся службу!
             {
-              if (OKK.AO == 0)
+              for (int i = 0; i < servicesCount; i++)
                 {
-                  OKK.AO = callsOKK + (dopCallsOKK-- > 0 ? 1 : 0) - OKK.calls;
-                  OKK.calls += OKK.AO;
-                  serviceName = "AO";
-                  auto it = std::find_if(svcs.begin(), svcs.end(), serviceSearch);
-                  it->calls -= OKK.AO;
-                  it->remainingOKKCount--;
-                }
-
-              if (OKK.OdinSO == 0)
-                {
-                  OKK.OdinSO = callsOKK + (dopCallsOKK-- > 0 ? 1 : 0) - OKK.calls;
-                  OKK.calls += OKK.OdinSO;
-                  serviceName = "OdinSO";
-                  auto it = std::find_if(svcs.begin(), svcs.end(), serviceSearch);
-                  it->calls -= OKK.OdinSO;
-                  it->remainingOKKCount--;
-                }
-
-              if (OKK.ETP == 0)
-                {
-                  OKK.ETP = callsOKK + (dopCallsOKK-- > 0 ? 1 : 0) - OKK.calls;
-                  OKK.calls += OKK.ETP;
-                  serviceName = "ETP";
-                  auto it = std::find_if(svcs.begin(), svcs.end(), serviceSearch);
-                  it->calls -= OKK.ETP;
-                  it->remainingOKKCount--;
-                }
-
-              if (OKK.ABC == 0)
-                {
-                  OKK.ABC = callsOKK + (dopCallsOKK-- > 0 ? 1 : 0) - OKK.calls;
-                  OKK.calls += OKK.ABC;
-                  serviceName = "ABC";
-                  auto it = std::find_if(svcs.begin(), svcs.end(), serviceSearch);
-                  it->calls -= OKK.ABC;
-                  it->remainingOKKCount--;
+                  if (OKK.s[i] == 0)
+                    {
+                      serviceID = i;
+                      auto it = std::find_if(svcs.begin(), svcs.end(), serviceSearch);
+                      setCalls(OKK, i, std::min(callsOKK + (dopCallsOKK-- > 0 ? 1 : 0) - OKK.calls, it->calls));
+                      it->calls -= OKK.s[i];
+                      it->remainingOKKCount--;
+                      break;
+                    }
                 }
             }
 
-          req = "UPDATE okks SET AO = ";
-          req += OKK.AO < 0 ? "NULL" : std::to_string(OKK.AO);
-          req += ", OdinSO = ";
-          req += OKK.OdinSO < 0 ? "NULL" : std::to_string(OKK.OdinSO);
-          req += ", ETP = ";
-          req += OKK.ETP < 0 ? "NULL" : std::to_string(OKK.ETP);
-          req += ", ABC = ";
-          req += OKK.ABC < 0 ? "NULL" : std::to_string(OKK.ABC);
-          req += " WHERE rowid = ";
+          req = "UPDATE okks SET ";
+
+          for (int i = 0; i < servicesCount; i++)
+            {
+              req += serviceNames[i];
+              req += " = ";
+              req += OKK.s[i] < 0 ? "NULL" : std::to_string(OKK.s[i]);
+              req += ", ";
+            }
+
+          req += "rowid = rowid WHERE rowid = ";
           req += std::to_string(OKK.id);
           req += ";";
 
@@ -407,9 +403,6 @@ void planOKK(sqlite3 *db)
           check();
         }
     }
-
-  rc = rc;
-  //TODO цикл сюда
 }
 
 void resetCalls(sqlite3 *db)
@@ -518,6 +511,12 @@ sqlite3 *connect(bool inMemory)
 int main()
 {
   srand(time(nullptr)); // Инициализация рандома
+
+  for (int i = 0; i < servicesCount; i++)
+    {
+      totalCalls2 += serviceCalls[i];
+    }
+
   sqlite3 *db = connect(false);
   cout << endl << endl;
   createTablePocyks(db); // Создаём таблицу поцыков
@@ -550,7 +549,7 @@ int main()
     for (int i = 0; i < OKKCount; i++)
       {
         name = OKK + std::to_string(i);
-        insertOKK(db, name, i % 2 == 0, i % 2 == 1, (i / 2) % 2 == 0, (i / 2) % 2 == 1);
+        insertOKK(db, name, i);
       }
   }
   cout << endl << "planirovanie OKK" << endl << endl;
@@ -572,9 +571,7 @@ int main()
               addCallsDno(db); // Накидываем прослушек доньям
             }
 
-          // printOut = true;
           call(db);
-          //   printOut = false;
         }
 
       // Неделя закончилась - всем сбрасываем количество прослушиваний
