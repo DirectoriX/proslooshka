@@ -23,7 +23,7 @@ const int cat2Count = 10;
 // Считаем суммарное положенное количество прослушек
 const int totalCalls = cat0Calls * cat0Count + cat1Calls * cat1Count + cat2Calls * cat2Count;
 
-const int servicesCount = 5;
+const int servicesCount = 6;
 const vector<string> serviceNames = {"AO", "OdinSO", "ETP", "ABC", "OFD", "KEK", "ABA", "XYZ"};
 const vector<int> serviceCalls = {600, 500, 300, 100, 200, 700, 400, 800};
 
@@ -325,6 +325,7 @@ void planOKK(sqlite3 *db)
 
       vector<OKK> OKKs = vector<OKK>();
       rc = sqlite3_exec(db, req.data(), OKKCallback, &OKKs, &zErrMsg);
+      check();
 
       for (auto &OKK : OKKs)
         {
@@ -339,17 +340,32 @@ void planOKK(sqlite3 *db)
             }
         }
 
-      check();
+      for (auto &OKK : OKKs)
+        {
+          if (callsOKK - OKK.calls <= calls)
+            {
+              setCalls(OKK, s.id, callsOKK - OKK.calls);
+              serviceID = s.id;
+              auto it = std::find_if(svcs.begin(), svcs.end(), serviceSearch);
+              s.calls -= OKK.s[s.id];
+              s.remainingOKKCount--;
+            }
+        }
+
+      calls = s.calls / s.remainingOKKCount;
+      dopCalls = s.calls - calls * s.remainingOKKCount;
 
       for (auto &OKK : OKKs)
         {
-          //          setCalls(OKK, s.id, calls + (dopCalls-- > 0 ? 1 : 0));
-          setCalls(OKK, s.id, std::min(calls + (dopCalls-- > 0 ? 1 : 0), callsOKK - OKK.calls));
-
-          if (OKK.calls > callsOKK + 1)
+          if (OKK.calls < callsOKK)
             {
-              rc = rc;
-              return;
+              setCalls(OKK, s.id, calls + (dopCalls-- > 0 ? 1 : 0));
+
+              if (OKK.calls > callsOKK + 1)
+                {
+                  rc = rc;
+                  return;
+                }
             }
         }
 
