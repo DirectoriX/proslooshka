@@ -69,7 +69,7 @@ int zeroCallback(void *NotUsed, int argc, char **argv, char **azColName)
   for (i = 0; i < argc; i++)
     {
       //      printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
-      cout << (argv[i] ? argv[i] : "NULL") << " ";
+      cout << (argv[i] != nullptr ? argv[i] : "NULL") << " ";
     }
 
   cout << endl;
@@ -112,17 +112,14 @@ int OKKCallback(void *OKKs, int argc, char **argv, char **azColName)
   if (argc == 6)
     {
       auto *ops = static_cast<vector<OKK> *>(OKKs);
-      //      printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
-      //cout << argv[i] << " ";
       OKK op;
       op.id = std::stoi(argv[0]);
       op.name = argv[1];
-      op.AO = std::stoi(argv[2] ? argv[2] : "-1");
-      op.OdinSO = std::stoi(argv[3] ? argv[3] : "-1");
-      op.ETP = std::stoi(argv[4] ? argv[4] : "-1");
-      op.ABC = std::stoi(argv[5] ? argv[5] : "-1");
+      op.AO = std::stoi(argv[2] != nullptr ? argv[2] : "-1");
+      op.OdinSO = std::stoi(argv[3] != nullptr ? argv[3] : "-1");
+      op.ETP = std::stoi(argv[4] != nullptr ? argv[4] : "-1");
+      op.ABC = std::stoi(argv[5] != nullptr ? argv[5] : "-1");
       ops->push_back(op);
-      cout << endl;
       return 0;
     }
 
