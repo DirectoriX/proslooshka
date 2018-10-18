@@ -240,7 +240,7 @@ void call(sqlite3 *db)
   check();
 }
 
-bool servicesComparsionOKKs(const Service &a, const Service &b)
+bool servicesComparsion(const Service &a, const Service &b)
 {
   if (a.remainingOKKCount == b.remainingOKKCount)
     { return a.calls > b.calls; }
@@ -275,13 +275,12 @@ void planOKK(sqlite3 *db)
     }
 
   string req;
-  string req1 = "SELECT rowid FROM okks WHERE ";
-  string req2 = " NOT NULL;";
 
   for (auto &svc : svcs)
     {
-      req = req1 + serviceNames[svc.id];
-      req += req2;
+      req = "SELECT rowid FROM okks WHERE ";
+      req += serviceNames[svc.id];
+      req += " NOT NULL;";
 
       if (debug)
         { cout << req << endl; }
@@ -292,17 +291,10 @@ void planOKK(sqlite3 *db)
 
   for (int svcI = 0; svcI < servicesCount - 1; svcI++) // FIXME
     {
-      std::sort(svcs.begin(), svcs.end(), servicesComparsionOKKs);
+      std::sort(svcs.begin(), svcs.end(), servicesComparsion);
       Service s = svcs.back();
       svcs.pop_back();
-
-      if (s.remainingOKKCount == 0)
-        {
-          break;
-        }
-
       int calls = s.calls / s.remainingOKKCount;
-      int dopCalls = s.calls - calls * s.remainingOKKCount;
       req = "SELECT rowid, * FROM okks WHERE ";
       req += serviceNames[s.id];
       req += " = 0;";
@@ -336,7 +328,7 @@ void planOKK(sqlite3 *db)
         }
 
       calls = s.calls / s.remainingOKKCount;
-      dopCalls = s.calls - calls * s.remainingOKKCount;
+      int dopCalls = s.calls - calls * s.remainingOKKCount;
 
       for (auto &OKK : OKKs)
         {
