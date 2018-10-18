@@ -23,14 +23,14 @@ const int cat2Count = 10;
 // Считаем суммарное положенное количество прослушек
 const int totalCalls = cat0Calls * cat0Count + cat1Calls * cat1Count + cat2Calls * cat2Count;
 
-const int servicesCount = 6;
+const int servicesCount = 8;
 const vector<string> serviceNames = {"AO", "OdinSO", "ETP", "ABC", "OFD", "KEK", "ABA", "XYZ"};
 const vector<int> serviceCalls = {600, 500, 300, 100, 200, 700, 400, 800};
 
 // Считаем суммарное количество звонков за прошлую неделю
 int totalCalls2 = 0;
 
-const int OKKCount = 7;
+const int OKKCount = 10;
 
 struct Service
 {
@@ -242,6 +242,9 @@ void call(sqlite3 *db)
 
 bool servicesComparsionOKKs(const Service &a, const Service &b)
 {
+  if (a.remainingOKKCount == b.remainingOKKCount)
+    { return a.calls > b.calls; }
+
   return a.remainingOKKCount > b.remainingOKKCount;
 }
 
@@ -346,7 +349,6 @@ void planOKK(sqlite3 *db)
             {
               setCalls(OKK, s.id, callsOKK - OKK.calls);
               serviceID = s.id;
-              auto it = std::find_if(svcs.begin(), svcs.end(), serviceSearch);
               s.calls -= OKK.s[s.id];
               s.remainingOKKCount--;
             }
@@ -360,12 +362,6 @@ void planOKK(sqlite3 *db)
           if (OKK.calls < callsOKK)
             {
               setCalls(OKK, s.id, calls + (dopCalls-- > 0 ? 1 : 0));
-
-              if (OKK.calls > callsOKK + 1)
-                {
-                  rc = rc;
-                  return;
-                }
             }
         }
 
