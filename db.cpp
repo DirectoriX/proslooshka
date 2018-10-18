@@ -23,6 +23,7 @@ const int cat2Count = 10;
 // Считаем суммарное положенное количество прослушек
 const int totalCalls = cat0Calls * cat0Count + cat1Calls * cat1Count + cat2Calls * cat2Count;
 
+// Параметры служб: количество, названия, каоличество звноков в прошлом спринте
 const int servicesCount = 8;
 const vector<string> serviceNames = {"AO", "OdinSO", "ETP", "ABC", "OFD", "KEK", "ABA", "XYZ"};
 const vector<int> serviceCalls = {600, 500, 300, 100, 200, 700, 400, 800};
@@ -30,8 +31,10 @@ const vector<int> serviceCalls = {600, 500, 300, 100, 200, 700, 400, 800};
 // Считаем суммарное количество звонков за прошлую неделю
 int totalCalls2 = 0;
 
+// Количество ОККшников (внезапно)
 const int OKKCount = 10;
 
+// Описание службы
 struct Service
 {
   int id = -1;
@@ -39,6 +42,7 @@ struct Service
   int calls = 0;
 };
 
+// Описнаие ОККшника
 struct OKK
 {
   int id = 0;
@@ -47,9 +51,11 @@ struct OKK
   vector<int> s = vector<int>(servicesCount);
 };
 
+// Пара вспомогательных переменных
 int id = 0;
 char *zErrMsg = nullptr;
 int rc;
+string req;
 
 void check()
 {
@@ -60,13 +66,13 @@ void check()
     }
 }
 
+// Печатает результат на экран. SELECTы всякие
 int zeroCallback(void *NotUsed, int argc, char **argv, char **azColName)
 {
   int i;
 
   for (i = 0; i < argc; i++)
     {
-      //      printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
       cout << (argv[i] != nullptr ? argv[i] : "NULL") << " ";
     }
 
@@ -74,6 +80,7 @@ int zeroCallback(void *NotUsed, int argc, char **argv, char **azColName)
   return 0;
 }
 
+// Возвращает rowid
 int rowidCallback(void *rowid, int argc, char **argv, char **azColName)
 {
   if (printOut)
@@ -83,6 +90,7 @@ int rowidCallback(void *rowid, int argc, char **argv, char **azColName)
   return 0;
 }
 
+// Возвращает count. Чем отличается от предыдущего? Ничем
 int countCallback(void *count, int argc, char **argv, char **azColName)
 {
   if (debug && printOut)
@@ -92,6 +100,7 @@ int countCallback(void *count, int argc, char **argv, char **azColName)
   return 0;
 }
 
+// Заполняет службы количеством ОККшников
 int servicesCallback(void *service, int argc, char **argv, char **azColName)
 {
   if (debug && printOut)
@@ -102,6 +111,7 @@ int servicesCallback(void *service, int argc, char **argv, char **azColName)
   return 0;
 }
 
+// Заполняет информацию об ОККШнике - имя, ID, службы
 int OKKCallback(void *OKKs, int argc, char **argv, char **azColName)
 {
   if (printOut)
@@ -126,9 +136,9 @@ int OKKCallback(void *OKKs, int argc, char **argv, char **azColName)
   return 1;
 }
 
+// Создаёт таблицу поцыков
 void createTablePocyks(sqlite3 *db)
 {
-  string req;
   req = "DROP TABLE IF EXISTS pocyks; CREATE TABLE pocyks (cat INT, name TEXT, callsRemain INT, mul FLOAT, active INT);";
 
   if (debug)
@@ -138,9 +148,9 @@ void createTablePocyks(sqlite3 *db)
   check();
 }
 
+// Создаёт таблицу ОККшников
 void createTableOKKs(sqlite3 *db)
 {
-  string req;
   req = "DROP TABLE IF EXISTS okks; CREATE TABLE okks (name TEXT";
 
   for (int i = 0; i < servicesCount; i++)
@@ -159,9 +169,9 @@ void createTableOKKs(sqlite3 *db)
   check();
 }
 
+// Добавляет поцыка
 void insertPocyk(sqlite3 *db, int cat, int number, int pocyks)
 {
-  string req;
   req = "INSERT INTO pocyks (cat, name, callsRemain, mul, active) VALUES (";
   req += std::to_string(cat);
   req += ", 'Поцык №";
@@ -177,11 +187,13 @@ void insertPocyk(sqlite3 *db, int cat, int number, int pocyks)
   check();
 }
 
+// Добавляет ОККшника
+// Много циклов потому что много служб
 void insertOKK(sqlite3 *db, const string &name, int code)
 {
-  string req;
   req = "INSERT INTO okks (name";
 
+  // Формируем список названий
   for (int i = 0; i < servicesCount; i++)
     {
       req += ", ";
@@ -192,6 +204,7 @@ void insertOKK(sqlite3 *db, const string &name, int code)
   req += name;
   req += "'";
 
+  // Заполняем значения
   for (int i = 0; i < servicesCount; i++)
     {
       req += ", ";
@@ -207,11 +220,11 @@ void insertOKK(sqlite3 *db, const string &name, int code)
   check();
 }
 
+// Выбираем поцыка для звонка
 void call(sqlite3 *db)
 {
   // Получаем поцыка
   int rowid;
-  string req;
   req = "SELECT rowid, cat, name FROM pocyks WHERE active = 1 ORDER BY callsRemain*mul DESC LIMIT 1;";
 
   if (debug)
@@ -219,6 +232,7 @@ void call(sqlite3 *db)
 
   rc = sqlite3_exec(db, req.data(), rowidCallback, &rowid, &zErrMsg);
   check();
+  // Обновляем этого поцыка
   req = "UPDATE pocyks SET callsRemain = callsRemain-1, mul=mul/2 WHERE rowid=";
   req += std::to_string(rowid);
   req += ";";
@@ -228,7 +242,7 @@ void call(sqlite3 *db)
 
   rc = sqlite3_exec(db, req.data(), zeroCallback, nullptr, &zErrMsg);
   check();
-  //  req = "UPDATE pocyks SET mul = mul+1.0+1.0*random()/9223372036854775807 WHERE active=1 AND rowid!="; //TODO
+  // Обновляем других поцыков
   req = "UPDATE pocyks SET mul = mul+1.0+1.0*random()/9223372036854775807 WHERE rowid!=";
   req += std::to_string(rowid);
   req += ";";
@@ -240,32 +254,42 @@ void call(sqlite3 *db)
   check();
 }
 
+// Сравнение служб для сортировки
 bool servicesComparsion(const Service &a, const Service &b)
 {
+  // Если операторов поровну - то сортируем по кол-ву звонков
   if (a.remainingOKKCount == b.remainingOKKCount)
     { return a.calls > b.calls; }
 
   return a.remainingOKKCount > b.remainingOKKCount;
 }
 
+// Записываем количество звонков оператора по данной службе
 void setCalls(OKK &op, int id, int calls)
 {
   op.s[id] = calls;
   op.calls += calls;
 }
 
+// Ннада для поиска
 int serviceID;
 
+// Это для поиска службы по ID
 bool serviceSearch(const Service &s)
 {
   return s.id == serviceID;
 }
 
+// Планирование звонков по ОККшникам
+// Вообще огонь
 void planOKK(sqlite3 *db)
 {
+  // Считаем ожидаемое кол-во звонков
   float k = 1.0 * totalCalls / totalCalls2;
   int callsOKK = totalCalls / OKKCount;
+  // Дополнительные звонки для полного учёта
   int dopCallsOKK = totalCalls - callsOKK * OKKCount;
+  // Создаём и заполняем список служб
   vector<Service> svcs = vector<Service>(servicesCount);
 
   for (int i = 0; i < svcs.size(); i++)
@@ -273,8 +297,6 @@ void planOKK(sqlite3 *db)
       svcs[i].calls = round(serviceCalls[i] * k);
       svcs[i].id = i;
     }
-
-  string req;
 
   for (auto &svc : svcs)
     {
@@ -289,12 +311,16 @@ void planOKK(sqlite3 *db)
       check();
     }
 
-  for (int svcI = 0; svcI < servicesCount - 1; svcI++) // FIXME
+  // Обрабатываем службы
+  for (int svcI = 0; svcI < servicesCount - 1; svcI++)
     {
+      // Находим подходящую - она в конце
       std::sort(svcs.begin(), svcs.end(), servicesComparsion);
       Service s = svcs.back();
       svcs.pop_back();
+      // Считаем кол-во звонков на оператора
       int calls = s.calls / s.remainingOKKCount;
+      // Заполняем список ОККшников для службы
       req = "SELECT rowid, * FROM okks WHERE ";
       req += serviceNames[s.id];
       req += " = 0;";
@@ -306,6 +332,7 @@ void planOKK(sqlite3 *db)
       rc = sqlite3_exec(db, req.data(), OKKCallback, &OKKs, &zErrMsg);
       check();
 
+      // Смотрим, сможет ли он принять полученное кол-во звонков
       for (auto &OKK : OKKs)
         {
           OKK.calls = 0;
@@ -318,6 +345,7 @@ void planOKK(sqlite3 *db)
                 }
             }
 
+          // Не смог, падла, пусть берёт тогда сколько может
           if (callsOKK - OKK.calls <= calls)
             {
               setCalls(OKK, s.id, callsOKK - OKK.calls);
@@ -327,16 +355,20 @@ void planOKK(sqlite3 *db)
             }
         }
 
+      // Считаем оставшиеся звонки
       calls = s.calls / s.remainingOKKCount;
       int dopCalls = s.calls - calls * s.remainingOKKCount;
 
+      // Проходимся по всем ОККшникам службы
       for (auto &OKK : OKKs)
         {
+          // накидываем звонков
           if (OKK.calls < callsOKK)
             {
               setCalls(OKK, s.id, calls + (dopCalls-- > 0 ? 1 : 0));
             }
 
+          // Смотрим, сколько ещё служб у него осталось
           int freedom = 0;
 
           for (int i = 0; i < servicesCount; i++)
@@ -347,12 +379,14 @@ void planOKK(sqlite3 *db)
                 }
             }
 
-          if (freedom == 1) // Дополнить оставшуюся службу!
+          // Дополнить оставшуюся службу!
+          if (freedom == 1)
             {
               for (int i = 0; i < servicesCount; i++)
                 {
                   if (OKK.s[i] == 0)
                     {
+                      // нашли эту самую последнюю службу по ID, теперь нао найти и обновить объект
                       serviceID = i;
                       auto it = std::find_if(svcs.begin(), svcs.end(), serviceSearch);
                       setCalls(OKK, i, std::min(callsOKK + (dopCallsOKK-- > 0 ? 1 : 0) - OKK.calls, it->calls));
@@ -363,8 +397,10 @@ void planOKK(sqlite3 *db)
                 }
             }
 
+          // Готовим запрос на обновление БД
           req = "UPDATE okks SET ";
 
+          // Составляем список новых значений
           for (int i = 0; i < servicesCount; i++)
             {
               req += serviceNames[i];
@@ -386,9 +422,9 @@ void planOKK(sqlite3 *db)
     }
 }
 
+// Сброс звонков поцыков в конце недели
 void resetCalls(sqlite3 *db)
 {
-  string req;
   req = "UPDATE pocyks SET callsRemain = ";
   req += std::to_string(cat0Calls);
   req += " WHERE cat=0;";
@@ -418,9 +454,9 @@ void resetCalls(sqlite3 *db)
   check();
 }
 
+// Накидываем звонков начинающим поцыкам
 void addCallsDno(sqlite3 *db)
 {
-  string req;
   req = "UPDATE pocyks SET callsRemain = ";
   req += std::to_string(cat0Calls);
   req += " WHERE cat=0;";
@@ -432,10 +468,10 @@ void addCallsDno(sqlite3 *db)
   check();
 }
 
+// Проверяем, есть ли ещё поцыки со звонками
 bool callsRemain(sqlite3 *db)
 {
   int count;
-  string req;
   req = "SELECT COUNT(*) FROM pocyks WHERE callsRemain>0 AND active=1;";
 
   if (debug)
@@ -446,9 +482,9 @@ bool callsRemain(sqlite3 *db)
   return count > 0;
 }
 
+// Переключаем статус активности поцыка случайным образом
 void toggleActivityRandom(sqlite3 *db)
 {
-  string req;
   req = "UPDATE pocyks SET active = 1-active WHERE rowid=(SELECT rowid FROM pocyks ORDER BY random() LIMIT 1);";
 
   if (debug)
@@ -458,6 +494,7 @@ void toggleActivityRandom(sqlite3 *db)
   check();
 }
 
+// Подключаемся к БД
 sqlite3 *connect(bool inMemory)
 {
   sqlite3 *db;
@@ -478,7 +515,7 @@ sqlite3 *connect(bool inMemory)
       return (nullptr);
     }
 
-  string req;
+  // Увелчиваем производительность
   req = "PRAGMA journal_mode = OFF; PRAGMA synchronous = 0;";
 
   if (debug)
@@ -564,4 +601,3 @@ int main()
   sqlite3_close(db);
   return 0;
 }
-
