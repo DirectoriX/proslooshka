@@ -251,15 +251,7 @@ bool servicesComparsionOKKs(const Service &a, const Service &b)
 void setCalls(OKK &op, int id, int calls)
 {
   op.s[id] = calls;
-  op.calls = 0;
-
-  for (int i = 0; i < op.s.size(); i++)
-    {
-      if (op.s[i] > 0)
-        {
-          op.calls += op.s[i];
-        }
-    }
+  op.calls += calls;
 }
 
 int serviceID;
@@ -272,21 +264,13 @@ bool serviceSearch(const Service &s)
 void planOKK(sqlite3 *db)
 {
   float k = 1.0 * totalCalls / totalCalls2;
-  vector<int> calls;
-  calls.reserve(servicesCount);
-
-  for (int i = 0; i < servicesCount; i++)
-    {
-      calls.push_back(round(serviceCalls[i] * k));
-    }
-
   int callsOKK = totalCalls / OKKCount;
   int dopCallsOKK = totalCalls - callsOKK * OKKCount;
   vector<Service> svcs = vector<Service>(servicesCount);
 
   for (int i = 0; i < svcs.size(); i++)
     {
-      svcs[i].calls = calls[i];
+      svcs[i].calls = round(serviceCalls[i] * k);
       svcs[i].id = i;
     }
 
@@ -341,10 +325,7 @@ void planOKK(sqlite3 *db)
                   OKK.calls += OKK.s[i];
                 }
             }
-        }
 
-      for (auto &OKK : OKKs)
-        {
           if (callsOKK - OKK.calls <= calls)
             {
               setCalls(OKK, s.id, callsOKK - OKK.calls);
@@ -363,11 +344,7 @@ void planOKK(sqlite3 *db)
             {
               setCalls(OKK, s.id, calls + (dopCalls-- > 0 ? 1 : 0));
             }
-        }
 
-      // Проверка на несвободных операторов
-      for (auto &OKK : OKKs)
-        {
           int freedom = 0;
 
           for (int i = 0; i < servicesCount; i++)
