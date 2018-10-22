@@ -198,14 +198,14 @@ bool serviceSearch(const Service &s)
 void planOKK(sqlite3 *db)
 {
   // Считаем ожидаемое кол-во звонков
-  float k = 1.0 * totalCalls / totalCalls2;
+  float k = (float)totalCalls / totalCalls2;
   int callsOKK = totalCalls / OKKCount;
   // Дополнительные звонки для полного учёта
   int dopCallsOKK = totalCalls - callsOKK * OKKCount;
   // Создаём и заполняем список служб
-  vector<Service> svcs = vector<Service>(servicesCount);
+  auto svcs = vector<Service>(servicesCount);
 
-  for (int i = 0; i < svcs.size(); i++)
+  for (int i = 0; i < servicesCount; i++)
     {
       svcs[i].calls = round(serviceCalls[i] * k);
       svcs[i].id = i;
@@ -241,7 +241,7 @@ void planOKK(sqlite3 *db)
       if (debug)
         { cout << req << endl; }
 
-      vector<OKK> OKKs = vector<OKK>();
+      auto OKKs = vector<OKK>();
       rc = sqlite3_exec(db, req.data(), OKKCallback, &OKKs, &zErrMsg);
       check();
 
@@ -250,7 +250,7 @@ void planOKK(sqlite3 *db)
         {
           OKK.calls = 0;
 
-          for (int i = 0; i < OKK.s.size(); i++)
+          for (int i = 0; i < servicesCount; i++)
             {
               if (OKK.s[i] > 0)
                 {
