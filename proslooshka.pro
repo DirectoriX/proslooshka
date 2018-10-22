@@ -3,9 +3,6 @@ CONFIG += console c++11
 CONFIG -= app_bundle
 CONFIG -= qt
 
-SOURCES += \
-    db.cpp
-
-HEADERS += \
+SOURCES += db.cpp
 
 LIBS += -lsqlite3
