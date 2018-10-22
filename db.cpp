@@ -1,6 +1,6 @@
 #include <algorithm>
+#include <cmath>
 #include <iostream>
-#include <random>
 #include <sqlite3.h>
 #include <string>
 #include <vector>
@@ -369,8 +369,6 @@ sqlite3 *connect(bool inMemory)
 
 int main()
 {
-  srand(time(nullptr)); // Инициализация рандома
-
   for (int i = 0; i < servicesCount; i++)
     {
       totalCalls2 += serviceCalls[i];
